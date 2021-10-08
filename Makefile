@@ -7,19 +7,16 @@
 CFLAGS = -Wall -std=c99
 CC = gcc
 
-BINARIES = testafila pingpong-tasks1 pingpong-tasks2 pingpong-tasks3
- 
-objs = ppos_core.o queue.o
-libs = ppos_core.h queue.h
+OBJS = ppos_core.o queue.o
+PROG = pingpong-tasks1 pingpong-tasks2 pingpong-tasks3
  
 # regra default
-all: $(BINARIES)
+all: testafila $(PROG)
  
 # regras de ligacao
 testafila: queue.o
-pingpong-tasks1: $(objs) pingpong-tasks1.o
-pingpong-tasks2: $(objs) pingpong-tasks2.o
-pingpong-tasks3: $(objs) pingpong-tasks3.o
+$(PROG) : % :  $(OBJS) %.o
+	$(CC) $^ -o $@
 
 # regras de compilação
 %.o: %.c %.h
@@ -35,4 +32,4 @@ clean:
 
 # remove tudo o que não for o código-fonte
 purge: clean
-	-rm -f $(BINARIES)
+	-rm -f testafila $(PROG)
