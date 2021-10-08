@@ -19,7 +19,7 @@ unsigned int taskCount = 0, userTasks = 0;
 /*!
   \brief Função para impressão de fila
 */  
-static void print_elem (void *ptr) {
+void print_elem (void *ptr) {
 
   task_t *elem = ptr ;
 
