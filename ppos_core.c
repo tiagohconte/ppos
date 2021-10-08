@@ -10,8 +10,91 @@
 
 #define STACKSIZE 64*1024	/* tamanho de pilha das threads */
 
-task_t taskMain, *taskAtual, *filaTask = NULL;
-unsigned int taskCount = 0;
+task_t taskMain, taskDispatcher, *currentTask, *lastTask;
+task_t *readyQueue = NULL;
+unsigned int taskCount = 0, userTasks = 0;
+
+// funções locais ==============================================================
+
+/*!
+  \brief Função para impressão de fila
+*/  
+static void print_elem (void *ptr) {
+
+  task_t *elem = ptr ;
+
+  if (!elem)
+    return ;
+
+  printf ("%d", elem->id) ;
+
+}
+
+/*!
+  \brief Escalonador de tarefas
+
+  \return Retorna o endereço da próxima task
+*/  
+static task_t * scheduler () {
+
+  return ( readyQueue );
+
+}
+/*!
+  \brief Despachante de tarefas
+*/  
+static void dispatcher () {
+
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: task dispatcher launched\n");
+  queue_print("Ready ", (queue_t *) readyQueue, print_elem);
+  #endif
+
+  task_t *nextTask;
+
+  // enquanto houverem user tasks
+  while ( userTasks > 0 ) {
+    
+    // escolhe a próxima tarefa a ser executada
+    nextTask = scheduler();
+
+    // se escalonador escolheu tarefa
+    if ( nextTask ) {
+      // switch para prox tarefa
+      task_switch(nextTask);
+
+      // voltando ao dispatcher, trata a tarefa conforme seu estado
+      /*  1 = PRONTA
+          2 = TERMINADA
+          3 = SUSPENSA  */
+      switch ( lastTask->status ) {
+      case 1:        
+        break;
+      case 2:
+        free(lastTask->context.uc_stack.ss_sp);
+        lastTask->context.uc_stack.ss_size = 0;
+        // remove task da fila de tasks
+        queue_remove ((queue_t**) &readyQueue, (queue_t*) lastTask);
+        userTasks--;        
+        break;
+      case 3:
+        break;
+      default:
+        break;
+      }
+
+      #ifdef DEBUG
+      queue_print("Ready ", (queue_t *) readyQueue, print_elem);
+      #endif
+
+    }
+
+  }
+
+  task_exit(0);
+
+  return;
+}
 
 // funções gerais ==============================================================
 
@@ -23,16 +106,25 @@ void ppos_init () {
   taskMain.id = taskCount++;
   taskMain.prev = NULL;
   taskMain.next = NULL;
+  taskMain.status = 1;
   getcontext( &(taskMain.context) );
 
-  if ( queue_append ((queue_t **) &filaTask, (queue_t*) &taskMain) ) {
-    fprintf(stderr, "Erro ao adicionar a tarefa à fila.\n");
+  if ( queue_append ((queue_t **) &readyQueue, (queue_t*) &taskMain) ) {
+    fprintf(stderr, "[PPOS error]: adding main task to readyQueue.\n");
+    exit(-1);
   }
 
-  taskAtual = &taskMain;
+  currentTask = &taskMain;
+
+  if ( task_create(&taskDispatcher, dispatcher, NULL) < 0 ) {
+    fprintf(stderr, "[PPOS error]: creating dispatcher\n");
+    exit(-1);
+  }
+
+  userTasks--;
 
   #ifdef DEBUG
-  fprintf(stdout, "[PPOS debug]: sistema iniciado\n");
+  fprintf(stdout, "[PPOS debug]: system initialized\n");
   #endif
 
 }
@@ -55,6 +147,7 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
   task->id = taskCount++;
   task->prev = NULL;
   task->next = NULL;
+  task->status = 1;
   getcontext( &(task->context) );
 
   // aloca stack
@@ -65,19 +158,21 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
     task->context.uc_stack.ss_flags = 0;
     task->context.uc_link = 0;
   } else {
-    perror ("Erro na criação da pilha: ");
-    return (-1);
+    perror ("[PPOS error]: creating stack: ");
+    return -1;
   }  
 
   // cria contexto com a função passada
   makecontext ( &(task->context), (void*)(start_func), 1, arg );
 
-  // adiciona task a fila de tasks
-  if ( queue_append ((queue_t **) &filaTask, (queue_t*) task) )
+  // adiciona task a fila de tasks prontas
+  if ( queue_append ((queue_t **) &readyQueue, (queue_t*) task) )
     return -1;
+  
+  userTasks++;
 
   #ifdef DEBUG
-  fprintf(stdout, "[PPOS debug]: task %d criada por task %d\n", task->id, taskAtual->id);
+  fprintf(stdout, "[PPOS debug]: task %d created by task %d\n", task->id, currentTask->id);
   #endif
 
   return task->id;
@@ -91,14 +186,16 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
 */
 void task_exit (int exitCode) {
 
-  // remove task da fila de tasks
-  queue_remove ((queue_t**) &filaTask, (queue_t*) taskAtual);
+  currentTask->status = 2;
 
   #ifdef DEBUG
-  fprintf(stdout, "[PPOS debug]: task %d exited\n", taskAtual->id);
+  fprintf(stdout, "[PPOS debug]: task %d exited\n", currentTask->id);
   #endif
 
-  task_switch( &taskMain );
+  if ( currentTask == &taskDispatcher )
+    task_switch( &taskMain );
+  else
+    task_switch( &taskDispatcher );
 
 }
 
@@ -111,21 +208,19 @@ void task_exit (int exitCode) {
 */
 int task_switch (task_t *task) {
 
-  task_t *aux;
-
   if (!task){
-    fprintf(stderr, "ERRO: switch para task inexistente");
+    fprintf(stderr, "[PPOS error]: switch to inexistent task");
     return -1;
   }
 
   #ifdef DEBUG
-  fprintf(stdout, "[PPOS debug]: switch task %d -> task %d\n", taskAtual->id, task->id);
+  fprintf(stdout, "[PPOS debug]: switch task %d -> task %d\n", currentTask->id, task->id);
   #endif
 
-  aux = taskAtual;
-  taskAtual = task;
+  lastTask = currentTask;
+  currentTask = task;
 
-  swapcontext ( &(aux->context), &(task->context) );
+  swapcontext ( &(lastTask->context), &(task->context) );
 
   return 0;
 
@@ -137,5 +232,36 @@ int task_switch (task_t *task) {
   \return Identificador numérico (ID) da tarefa corrente
 */
 int task_id () {
-  return taskAtual->id;
+  return currentTask->id;
+}
+
+// operações de escalonamento ==================================================
+
+/*!
+  \brief Libera o processador para a próxima tarefa
+*/
+void task_yield () {
+  if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) currentTask) ) {
+    fprintf(stderr, "[PPOS error]: removing current task from queue\n");
+    exit(-1);
+  }
+
+  if ( !( currentTask == &taskMain ) ) {
+    // adiciona task ao fim da fila de tasks prontas
+    if ( queue_append ((queue_t **) &readyQueue, (queue_t*) currentTask) ) {
+      fprintf(stderr, "[PPOS error]: adding task to queue\n");
+      exit(-1);
+    }
+  } else {
+    if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) &taskDispatcher) ) {
+      fprintf(stderr, "[PPOS error]: removing dispatcher task from queue\n");
+      exit(-1);
+    }
+  }
+
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: task %d yields the CPU\n", currentTask->id);
+  #endif
+
+  task_switch(&taskDispatcher);
 }

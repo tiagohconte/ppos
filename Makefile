@@ -8,13 +8,13 @@ CFLAGS = -Wall -std=c99
 CC = gcc
 
 OBJS = ppos_core.o queue.o
-PROG = pingpong-tasks1 pingpong-tasks2 pingpong-tasks3
+PROG = pingpong-dispatcher
+# PROG += pingpong-tasks1 pingpong-tasks2 pingpong-tasks3
  
 # regra default
-all: testafila $(PROG)
+all: $(PROG)
  
 # regras de ligacao
-testafila: queue.o
 $(PROG) : % :  $(OBJS) %.o
 	$(CC) $^ -o $@
 
@@ -32,4 +32,4 @@ clean:
 
 # remove tudo o que não for o código-fonte
 purge: clean
-	-rm -f testafila $(PROG)
+	-rm -f $(PROG)

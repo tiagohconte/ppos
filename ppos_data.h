@@ -16,6 +16,7 @@ typedef struct task_t
    struct task_t *prev, *next ;		// ponteiros para usar em filas
    int id ;				// identificador da tarefa
    ucontext_t context ;			// contexto armazenado da tarefa
+   int status ;   // status da tarefa ( 1 = PRONTA, 2 = TERMINADA, 3 = SUSPENSA )
    // ... (outros campos serão adicionados mais tarde)
 } task_t ;
 
