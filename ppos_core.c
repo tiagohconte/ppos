@@ -91,6 +91,9 @@ static void dispatcher () {
 
   }
 
+  free(currentTask->context.uc_stack.ss_sp);
+  currentTask->context.uc_stack.ss_size = 0;
+
   task_exit(0);
 
   return;
@@ -264,4 +267,20 @@ void task_yield () {
   #endif
 
   task_switch(&taskDispatcher);
+}
+
+/*!
+  \brief Define a prioridade estática de uma tarefa (ou a tarefa atual)
+*/
+void task_setprio (task_t *task, int prio) {
+
+}
+
+/*!
+  \brief Retorna a prioridade estática de uma tarefa (ou a tarefa atual)
+*/
+int task_getprio (task_t *task) {
+
+  return 0;
+
 }
