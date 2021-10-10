@@ -9,6 +9,7 @@
 // variáveis globais e constantes ==============================================
 
 #define STACKSIZE 64*1024	/* tamanho de pilha das threads */
+#define TASK_AGING -1
 
 task_t taskMain, taskDispatcher, *currentTask, *lastTask;
 task_t *readyQueue = NULL;
@@ -29,6 +30,16 @@ void print_elem (void *ptr) {
   printf ("%d", elem->id) ;
 
 }
+void print_prio (void *ptr) {
+
+  task_t *elem = ptr ;
+
+  if (!elem)
+    return ;
+
+  printf ("[%d -> %d]", elem->id, elem->din_prio) ;
+
+}
 
 /*!
   \brief Escalonador de tarefas
@@ -37,7 +48,42 @@ void print_elem (void *ptr) {
 */  
 static task_t * scheduler () {
 
-  return ( readyQueue );
+  task_t *nextTask = readyQueue, *task;
+
+  task = nextTask->next;
+
+  #ifdef DEBUG
+  queue_print("Dynamic Priority ", (queue_t *) readyQueue, print_prio);
+  #endif
+
+  // busca a próxima tarefa e realiza aging de tarefas
+  do {
+    // verifica se a prioridade dinâmica da task analisada é maior/igual do que a definida atualmente
+    if ( task->din_prio == nextTask->din_prio ) {
+      // caso prio. dinamicas sejam iguais, verifica a prioridade estática
+      if ( task->est_prio < nextTask->est_prio ) {
+        nextTask->din_prio+=TASK_AGING;
+        nextTask = task;
+      }
+    } else if ( task->din_prio < nextTask->din_prio ) {
+      // caso a proxima seja maior, a definida anteriormente sofre aging
+      nextTask->din_prio+=TASK_AGING;
+      nextTask = task;
+    } else {
+      // caso a prioridade não seja maior, a tarefa sofre aging
+      task->din_prio+=TASK_AGING;
+    }
+    task = task->next;  // incremento
+  } while ( task != readyQueue ); // verifica até voltar ao início
+
+  // reseta a prioridade dinâmica da tarefa que será executada em seguida
+  nextTask->din_prio = nextTask->est_prio;
+
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: task scheduler: task %d is the next\n", nextTask->id);
+  #endif
+
+  return ( nextTask );
 
 }
 /*!
@@ -47,7 +93,6 @@ static void dispatcher () {
 
   #ifdef DEBUG
   fprintf(stdout, "[PPOS debug]: task dispatcher launched\n");
-  queue_print("Ready ", (queue_t *) readyQueue, print_elem);
   #endif
 
   task_t *nextTask;
@@ -151,6 +196,8 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
   task->prev = NULL;
   task->next = NULL;
   task->status = 1;
+  task->est_prio = 0;
+  task->din_prio = 0;
   getcontext( &(task->context) );
 
   // aloca stack
@@ -273,14 +320,29 @@ void task_yield () {
   \brief Define a prioridade estática de uma tarefa (ou a tarefa atual)
 */
 void task_setprio (task_t *task, int prio) {
+  if ( !task )
+    task = currentTask;
 
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: task %d priority setted to %d \n", task->id, prio);
+  #endif
+
+  task->est_prio = prio;
+  task->din_prio = prio; 
+  
 }
 
 /*!
   \brief Retorna a prioridade estática de uma tarefa (ou a tarefa atual)
 */
 int task_getprio (task_t *task) {
+  if ( !task )
+    task = currentTask;
+  
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: got priority of task %d\n", task->id);
+  #endif
 
-  return 0;
+  return ( task->est_prio );  
 
 }

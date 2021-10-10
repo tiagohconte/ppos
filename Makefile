@@ -8,8 +8,7 @@ CFLAGS = -Wall -std=c99
 CC = gcc
 
 OBJS = ppos_core.o queue.o
-PROG = pingpong-dispatcher
-# PROG += pingpong-tasks1 pingpong-tasks2 pingpong-tasks3
+PROG = pingpong-scheduler
  
 # regra default
 all: $(PROG)
