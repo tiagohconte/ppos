@@ -113,13 +113,21 @@ static void dispatcher () {
           2 = TERMINADA
           3 = SUSPENSA  */
       switch ( lastTask->status ) {
-      case 1:        
+      case 1:    
+        // adiciona task ao fim da fila de tasks prontas
+        if ( queue_append ((queue_t **) &readyQueue, (queue_t*) lastTask) ) {
+          fprintf(stderr, "[PPOS error]: dispatcher: fail adding task to queue\n");
+          exit(-1);
+        }    
         break;
       case 2:
         free(lastTask->context.uc_stack.ss_sp);
         lastTask->context.uc_stack.ss_size = 0;
         // remove task da fila de tasks
-        queue_remove ((queue_t**) &readyQueue, (queue_t*) lastTask);
+        if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) lastTask) ) {
+          fprintf(stderr, "[PPOS error]: dispatcher: fail removing task from queue\n");
+          exit(-1);
+        }
         userTasks--;        
         break;
       case 3:
@@ -296,13 +304,7 @@ void task_yield () {
     exit(-1);
   }
 
-  if ( !( currentTask == &taskMain ) ) {
-    // adiciona task ao fim da fila de tasks prontas
-    if ( queue_append ((queue_t **) &readyQueue, (queue_t*) currentTask) ) {
-      fprintf(stderr, "[PPOS error]: adding task to queue\n");
-      exit(-1);
-    }
-  } else {
+  if ( currentTask == &taskMain ) {
     if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) &taskDispatcher) ) {
       fprintf(stderr, "[PPOS error]: removing dispatcher task from queue\n");
       exit(-1);
