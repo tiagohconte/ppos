@@ -4,6 +4,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <signal.h>
+#include <sys/time.h>
 #include "ppos.h"
 
 // variáveis globais e constantes ==============================================
@@ -13,7 +15,13 @@
 
 task_t taskMain, taskDispatcher, *currentTask, *lastTask;
 task_t *readyQueue = NULL;
-unsigned int taskCount = 0, userTasks = 0;
+unsigned int taskCount = 0, userTasks = 0, quantum_count;
+
+// estrutura que define um tratador de sinal (deve ser global ou static)
+struct sigaction ticksAction ;
+
+// estrutura de inicialização to timer
+struct itimerval timer ;
 
 // funções locais ==============================================================
 
@@ -37,7 +45,7 @@ void print_prio (void *ptr) {
   if (!elem)
     return ;
 
-  printf ("[%d -> %d]", elem->id, elem->din_prio) ;
+  printf ("(%d -> %d)", elem->id, elem->din_prio) ;
 
 }
 
@@ -105,6 +113,8 @@ static void dispatcher () {
 
     // se escalonador escolheu tarefa
     if ( nextTask ) {
+      // seta quantum counter
+      quantum_count = 20;
       // switch para prox tarefa
       task_switch(nextTask);
 
@@ -152,6 +162,19 @@ static void dispatcher () {
   return;
 }
 
+// tratador de sinal de ticks de relógio
+static void ticks_handler (int signum) {
+
+  // se não é tarefa de sistema, decrementa quantum
+  if ( !( currentTask->system_task ) ) {
+    quantum_count--;
+    // quando o contador chega em zero, devolve CPU
+    if ( quantum_count == 0 )
+      task_yield();
+  }
+
+}
+
 // funções gerais ==============================================================
 
 // Inicializa o sistema operacional; deve ser chamada no inicio do main()
@@ -163,6 +186,7 @@ void ppos_init () {
   taskMain.prev = NULL;
   taskMain.next = NULL;
   taskMain.status = 1;
+  taskMain.system_task = 0;
   getcontext( &(taskMain.context) );
 
   if ( queue_append ((queue_t **) &readyQueue, (queue_t*) &taskMain) ) {
@@ -177,7 +201,29 @@ void ppos_init () {
     exit(-1);
   }
 
+  taskDispatcher.system_task = 1;
   userTasks--;
+
+  // registra a ação para o sinal de timer SIGALRM
+  ticksAction.sa_handler = ticks_handler ;
+  sigemptyset (&ticksAction.sa_mask) ;
+  ticksAction.sa_flags = 0 ;
+  if ( sigaction( SIGALRM, &ticksAction, 0 ) < 0 ) {
+    perror ("Erro em sigaction ticks: ") ;
+    exit(-1) ;
+  }
+
+  // ajuste de valores do temporizador
+  timer.it_value.tv_usec = 1000 ;       // primeiro disparo, em micro-segundos
+  timer.it_value.tv_sec  = 0 ;          // primeiro disparo, em segundos
+  timer.it_interval.tv_usec = 1000 ;    // disparos subsequentes, em micro-segundos
+  timer.it_interval.tv_sec  = 0 ;       // disparos subsequentes, em segundos
+
+  // arma o temporizador ITIMER_REAL (vide man setitimer)
+  if (setitimer (ITIMER_REAL, &timer, 0) < 0) {
+    perror ("Erro em setitimer: ") ;
+    exit(-1) ;
+  }
 
   #ifdef DEBUG
   fprintf(stdout, "[PPOS debug]: system initialized\n");
@@ -206,6 +252,7 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
   task->status = 1;
   task->est_prio = 0;
   task->din_prio = 0;
+  task->system_task = 0;
   getcontext( &(task->context) );
 
   // aloca stack

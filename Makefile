@@ -3,19 +3,20 @@
 # Setembro de 2021
 # Makefile
 
-# define as flags para compilação
-CFLAGS = -Wall -std=c99
+# define as flags
 CC = gcc
+CFLAGS = -Wall
+LFLAGS = -lm
 
 OBJS = ppos_core.o queue.o
-PROG = pingpong-scheduler
+PROG = pingpong-preempcao pingpong-preempcao-stress
  
 # regra default
 all: $(PROG)
  
 # regras de ligacao
 $(PROG) : % :  $(OBJS) %.o
-	$(CC) $^ -o $@
+	$(CC) $^ -o $@ $(LFLAGS)
 
 # regras de compilação
 %.o: %.c %.h
