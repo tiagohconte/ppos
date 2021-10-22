@@ -6,10 +6,10 @@
 # define as flags
 CC = gcc
 CFLAGS = -Wall
-LFLAGS = -lm
+LFLAGS = 
 
 OBJS = ppos_core.o queue.o
-PROG = pingpong-preempcao pingpong-preempcao-stress
+PROG = pingpong-contab pingpong-contab-prio
  
 # regra default
 all: $(PROG)

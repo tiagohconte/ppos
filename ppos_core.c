@@ -15,7 +15,7 @@
 
 task_t taskMain, taskDispatcher, *currentTask, *lastTask;
 task_t *readyQueue = NULL;
-unsigned int taskCount = 0, userTasks = 0, quantum_count;
+unsigned int taskCount = 0, userTasks = 0, quantum_count, ticks;
 
 // estrutura que define um tratador de sinal (deve ser global ou static)
 struct sigaction ticksAction ;
@@ -104,6 +104,7 @@ static void dispatcher () {
   #endif
 
   task_t *nextTask;
+  unsigned int proc_time;
 
   // enquanto houverem user tasks
   while ( userTasks > 0 ) {
@@ -115,8 +116,12 @@ static void dispatcher () {
     if ( nextTask ) {
       // seta quantum counter
       quantum_count = 20;
+      // coleta tempo de sistema antes de entrar na tarefa
+      proc_time = systime();
       // switch para prox tarefa
       task_switch(nextTask);
+      // calcula o tempo de processamento da tarefa
+      lastTask->proc_time += systime() - proc_time;
 
       // voltando ao dispatcher, trata a tarefa conforme seu estado
       /*  1 = PRONTA
@@ -164,6 +169,8 @@ static void dispatcher () {
 
 // tratador de sinal de ticks de relógio
 static void ticks_handler (int signum) {
+  // incrementa contador de ticks e tempo de processamento da tarefa atual
+  ticks++;
 
   // se não é tarefa de sistema, decrementa quantum
   if ( !( currentTask->system_task ) ) {
@@ -181,6 +188,8 @@ static void ticks_handler (int signum) {
 void ppos_init () {
   /* desativa o buffer da saida padrao (stdout), usado pela função printf */
   setvbuf ( stdout, 0, _IONBF, 0 ) ;
+
+  ticks = 0;
 
   taskMain.id = taskCount++;
   taskMain.prev = NULL;
@@ -253,6 +262,9 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
   task->est_prio = 0;
   task->din_prio = 0;
   task->system_task = 0;
+  task->inic_time = 0;
+  task->proc_time = 0;
+  task->activ = 0;
   getcontext( &(task->context) );
 
   // aloca stack
@@ -297,6 +309,8 @@ void task_exit (int exitCode) {
   fprintf(stdout, "[PPOS debug]: task %d exited\n", currentTask->id);
   #endif
 
+  fprintf(stdout, "Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", currentTask->id, (systime() - currentTask->inic_time), currentTask->proc_time, currentTask->activ );
+
   if ( currentTask == &taskDispatcher )
     task_switch( &taskMain );
   else
@@ -324,6 +338,8 @@ int task_switch (task_t *task) {
 
   lastTask = currentTask;
   currentTask = task;
+
+  task->activ++;
 
   swapcontext ( &(lastTask->context), &(task->context) );
 
@@ -394,4 +410,13 @@ int task_getprio (task_t *task) {
 
   return ( task->est_prio );  
 
+}
+
+// operações de gestão do tempo ================================================
+
+/*!
+  \brief Retorna o relógio atual (em milisegundos)
+*/
+unsigned int systime () {
+  return ticks;
 }

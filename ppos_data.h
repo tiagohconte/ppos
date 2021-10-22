@@ -20,7 +20,9 @@ typedef struct task_t
    int est_prio ;  // prioridade estática da tarefa ( de -20 à +20, sendo -20 maior prioridade)
    int din_prio ;  // prioridade dinâmica da tarefa
    int system_task ;  // task de sistema? ( 0 = NÃO, 1 = SIM)
-   // ... (outros campos serão adicionados mais tarde)
+   unsigned int inic_time;  // tempo em que a tarefa foi iniciada
+   unsigned int proc_time;  // tempo de processamento da tarefa
+   unsigned int activ;  // quantidade de ativações do processo
 } task_t ;
 
 // estrutura que define um semáforo
