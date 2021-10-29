@@ -196,7 +196,14 @@ void ppos_init () {
   taskMain.next = NULL;
   taskMain.status = 1;
   taskMain.system_task = 0;
+  taskMain.est_prio = 0;
+  taskMain.din_prio = 0;
+  taskMain.inic_time = systime();
+  taskMain.proc_time = 0;
+  taskMain.activ = 0;
   getcontext( &(taskMain.context) );
+
+  userTasks++;
 
   if ( queue_append ((queue_t **) &readyQueue, (queue_t*) &taskMain) ) {
     fprintf(stderr, "[PPOS error]: adding main task to readyQueue.\n");
@@ -205,8 +212,13 @@ void ppos_init () {
 
   currentTask = &taskMain;
 
+  // cria o dispatcher e remove ele da fila
   if ( task_create(&taskDispatcher, dispatcher, NULL) < 0 ) {
     fprintf(stderr, "[PPOS error]: creating dispatcher\n");
+    exit(-1);
+  }
+  if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) &taskDispatcher) ) {
+    fprintf(stderr, "[PPOS error]: removing dispatcher task from queue\n");
     exit(-1);
   }
 
@@ -238,6 +250,8 @@ void ppos_init () {
   fprintf(stdout, "[PPOS debug]: system initialized\n");
   #endif
 
+  task_switch(&taskDispatcher);
+
 }
 
 // gerência de tarefas =========================================================
@@ -262,7 +276,7 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
   task->est_prio = 0;
   task->din_prio = 0;
   task->system_task = 0;
-  task->inic_time = 0;
+  task->inic_time = systime();
   task->proc_time = 0;
   task->activ = 0;
   getcontext( &(task->context) );
@@ -312,9 +326,9 @@ void task_exit (int exitCode) {
   fprintf(stdout, "Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", currentTask->id, (systime() - currentTask->inic_time), currentTask->proc_time, currentTask->activ );
 
   if ( currentTask == &taskDispatcher )
-    task_switch( &taskMain );
-  else
-    task_switch( &taskDispatcher );
+    exit(0);
+  
+  task_switch( &taskDispatcher );
 
 }
 
@@ -365,13 +379,6 @@ void task_yield () {
   if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) currentTask) ) {
     fprintf(stderr, "[PPOS error]: removing current task from queue\n");
     exit(-1);
-  }
-
-  if ( currentTask == &taskMain ) {
-    if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) &taskDispatcher) ) {
-      fprintf(stderr, "[PPOS error]: removing dispatcher task from queue\n");
-      exit(-1);
-    }
   }
 
   #ifdef DEBUG
