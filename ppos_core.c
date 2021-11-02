@@ -138,7 +138,7 @@ static void dispatcher () {
       case 2:
         free(lastTask->context.uc_stack.ss_sp);
         lastTask->context.uc_stack.ss_size = 0;
-        // remove task da fila de tasks
+        // remove task da fila de tasks prontas
         if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) lastTask) ) {
           fprintf(stderr, "[PPOS error]: dispatcher: fail removing task from queue\n");
           exit(-1);
@@ -201,6 +201,8 @@ void ppos_init () {
   taskMain.inic_time = systime();
   taskMain.proc_time = 0;
   taskMain.activ = 0;
+  taskMain.exit_code = 0;
+  taskMain.joinedQueue = NULL;
   getcontext( &(taskMain.context) );
 
   userTasks++;
@@ -279,6 +281,8 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
   task->inic_time = systime();
   task->proc_time = 0;
   task->activ = 0;
+  task->exit_code = 0;
+  task->joinedQueue = NULL;
   getcontext( &(task->context) );
 
   // aloca stack
@@ -318,6 +322,31 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
 void task_exit (int exitCode) {
 
   currentTask->status = 2;
+  currentTask->exit_code = exitCode;
+
+  #ifdef DEBUG
+  queue_print("Joined queue ", (queue_t *) currentTask->joinedQueue, print_elem);
+  #endif
+
+  task_t *task = currentTask->joinedQueue;
+  while (task) {
+    // remove task da fila de joined tasks
+    if ( queue_remove ((queue_t**) &(currentTask->joinedQueue), (queue_t*) task) ) {
+      fprintf(stderr, "[PPOS error]: task exit: fail removing task from joined queue\n");
+      exit(-1);
+    }
+
+    task->status = 1;
+
+    // adiciona task a fila de tasks prontas
+    if ( queue_append ((queue_t **) &readyQueue, (queue_t*) task) ) {
+      fprintf(stderr, "[PPOS error]: task exit: fail adding task to ready queue\n");
+      exit(-1);
+    }
+    userTasks++;
+
+    task = currentTask->joinedQueue;
+  }
 
   #ifdef DEBUG
   fprintf(stdout, "[PPOS debug]: task %d exited\n", currentTask->id);
@@ -416,6 +445,44 @@ int task_getprio (task_t *task) {
   #endif
 
   return ( task->est_prio );  
+
+}
+
+// operações de sincronização ==================================================
+
+/*! 
+  \brief a tarefa corrente aguarda o encerramento de outra task
+*/
+int task_join (task_t *task) {
+  // verifica se a tarefa existe e não foi exited
+  if ( !task || task->status == 2 )
+    return (-1);
+
+  // remove task da fila de tasks prontas
+  if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) currentTask) ) {
+    fprintf(stderr, "[PPOS error]: task join: fail removing task from ready queue\n");
+    exit(-1);
+  }
+  userTasks--;
+
+  // seta o status da tarefa atual para suspensa
+  currentTask->status = 3;
+  
+  // adiciona task atual a fila de tasks join da task passada via parametro
+  if ( queue_append ((queue_t **) &(task->joinedQueue), (queue_t*) currentTask) ) {
+    fprintf(stderr, "[PPOS error]: task join: fail adding task to joined queue\n");
+    exit(-1);
+  }
+
+  #ifdef DEBUG
+  fprintf(stderr, "[PPOS debug]: added to queue\n");
+  queue_print("Ready queue ", (queue_t *) readyQueue, print_elem);
+  queue_print("Joined queue ", (queue_t *) task->joinedQueue, print_elem);
+  #endif
+
+  task_switch(&taskDispatcher);
+
+  return task->exit_code;
 
 }
 

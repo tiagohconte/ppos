@@ -23,6 +23,8 @@ typedef struct task_t
    unsigned int inic_time;  // tempo em que a tarefa foi iniciada
    unsigned int proc_time;  // tempo de processamento da tarefa
    unsigned int activ;  // quantidade de ativações do processo
+   unsigned int exit_code;  // exit code da tarefa
+   struct task_t *joinedQueue;  // fila de tarefas esperando fim da task
 } task_t ;
 
 // estrutura que define um semáforo
