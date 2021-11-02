@@ -1,6 +1,6 @@
 // PingPongOS - PingPong Operating System
-// Prof. Carlos A. Maziero, DINF UFPR
-// Versão 1.1 -- Julho de 2016
+// Tiago Henrique Conte, DINF UFPR
+// Novembro de 2021
 
 // Estruturas de dados internas do sistema operacional
 
@@ -22,6 +22,7 @@ typedef struct task_t
    int system_task ;  // task de sistema? ( 0 = NÃO, 1 = SIM)
    unsigned int inic_time;  // tempo em que a tarefa foi iniciada
    unsigned int proc_time;  // tempo de processamento da tarefa
+   unsigned int wake_time;  // tempo em que a tarefa deve ser acordada
    unsigned int activ;  // quantidade de ativações do processo
    unsigned int exit_code;  // exit code da tarefa
    struct task_t *joinedQueue;  // fila de tarefas esperando fim da task

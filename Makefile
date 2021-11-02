@@ -1,6 +1,6 @@
 # PingPongOS - PingPong Operating System
 # Tiago Henrique Conte, DINF UFPR
-# Setembro de 2021
+# Novembro de 2021
 # Makefile
 
 # define as flags
@@ -9,7 +9,7 @@ CFLAGS = -Wall
 LFLAGS = 
 
 OBJS = ppos_core.o queue.o
-PROG = pingpong-join
+PROG = pingpong-sleep
  
 # regra default
 all: $(PROG)

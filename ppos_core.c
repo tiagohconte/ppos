@@ -1,6 +1,6 @@
 // PingPongOS - PingPong Operating System
 // Tiago Henrique Conte, DINF UFPR
-// Versão 0.1 - Outubro de 2021
+// Novembro de 2021
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,7 +14,7 @@
 #define TASK_AGING -1
 
 task_t taskMain, taskDispatcher, *currentTask, *lastTask;
-task_t *readyQueue = NULL;
+task_t *readyQueue = NULL, *sleepQueue = NULL;
 unsigned int taskCount = 0, userTasks = 0, quantum_count, ticks;
 
 // estrutura que define um tratador de sinal (deve ser global ou static)
@@ -50,11 +50,52 @@ void print_prio (void *ptr) {
 }
 
 /*!
+  \brief Verifica a fila de adormecidas
+*/  
+void sleep_verify () {
+  #ifdef DEBUG
+  queue_print("Sleep queue ", (queue_t *) sleepQueue, print_elem);
+  #endif
+
+  // verifica a fila de tarefas adormecidas
+  task_t *aux, *task = sleepQueue;
+  unsigned int size = queue_size( (queue_t *) sleepQueue ), count = 0;
+  while ( count < size ) {
+    aux = task->next;
+    // verifica se esta na hora de acordar
+    if( task->wake_time == systime() ) {
+      // remove task da fila de tasks adormecidas
+      if ( queue_remove ((queue_t**) &sleepQueue, (queue_t*) task) ) {
+        fprintf(stderr, "[PPOS error]: dispatcher: fail removing task from sleep queue\n");
+        exit(-1);
+      }
+
+      // seta o status da task para pronta
+      task->status = 1;
+      task->wake_time = 0;
+      
+      // adiciona task a fila de prontas
+      if ( queue_append ((queue_t **) &readyQueue, (queue_t*) task) ) {
+        fprintf(stderr, "[PPOS error]: dispatcher: fail adding task to ready queue\n");
+        exit(-1);
+      }
+    }
+
+    task = aux;
+    count++;
+  }
+
+}
+
+/*!
   \brief Escalonador de tarefas
 
-  \return Retorna o endereço da próxima task
+  \return Retorna o endereço da próxima task da fila de prontas
 */  
-static task_t * scheduler () {
+task_t * scheduler () {
+
+  if ( !readyQueue )
+    return NULL;
 
   task_t *nextTask = readyQueue, *task;
 
@@ -97,7 +138,7 @@ static task_t * scheduler () {
 /*!
   \brief Despachante de tarefas
 */  
-static void dispatcher () {
+void dispatcher () {
 
   #ifdef DEBUG
   fprintf(stdout, "[PPOS debug]: task dispatcher launched\n");
@@ -131,7 +172,7 @@ static void dispatcher () {
       case 1:    
         // adiciona task ao fim da fila de tasks prontas
         if ( queue_append ((queue_t **) &readyQueue, (queue_t*) lastTask) ) {
-          fprintf(stderr, "[PPOS error]: dispatcher: fail adding task to queue\n");
+          fprintf(stderr, "[PPOS error]: dispatcher: fail adding task to ready queue\n");
           exit(-1);
         }    
         break;
@@ -140,7 +181,7 @@ static void dispatcher () {
         lastTask->context.uc_stack.ss_size = 0;
         // remove task da fila de tasks prontas
         if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) lastTask) ) {
-          fprintf(stderr, "[PPOS error]: dispatcher: fail removing task from queue\n");
+          fprintf(stderr, "[PPOS error]: dispatcher: fail removing task from ready queue\n");
           exit(-1);
         }
         userTasks--;        
@@ -156,6 +197,9 @@ static void dispatcher () {
       #endif
 
     }
+
+    // verifica fila de adormecidas
+    sleep_verify();
 
   }
 
@@ -200,6 +244,7 @@ void ppos_init () {
   taskMain.din_prio = 0;
   taskMain.inic_time = systime();
   taskMain.proc_time = 0;
+  taskMain.wake_time = 0;
   taskMain.activ = 0;
   taskMain.exit_code = 0;
   taskMain.joinedQueue = NULL;
@@ -208,7 +253,7 @@ void ppos_init () {
   userTasks++;
 
   if ( queue_append ((queue_t **) &readyQueue, (queue_t*) &taskMain) ) {
-    fprintf(stderr, "[PPOS error]: adding main task to readyQueue.\n");
+    fprintf(stderr, "[PPOS error]: ppos_init: adding main task to readyQueue.\n");
     exit(-1);
   }
 
@@ -216,11 +261,11 @@ void ppos_init () {
 
   // cria o dispatcher e remove ele da fila
   if ( task_create(&taskDispatcher, dispatcher, NULL) < 0 ) {
-    fprintf(stderr, "[PPOS error]: creating dispatcher\n");
+    fprintf(stderr, "[PPOS error]: ppos_init: creating dispatcher\n");
     exit(-1);
   }
   if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) &taskDispatcher) ) {
-    fprintf(stderr, "[PPOS error]: removing dispatcher task from queue\n");
+    fprintf(stderr, "[PPOS error]: ppos_init: removing dispatcher task from queue\n");
     exit(-1);
   }
 
@@ -280,6 +325,7 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
   task->system_task = 0;
   task->inic_time = systime();
   task->proc_time = 0;
+  task->wake_time = 0;
   task->activ = 0;
   task->exit_code = 0;
   task->joinedQueue = NULL;
@@ -332,7 +378,7 @@ void task_exit (int exitCode) {
   while (task) {
     // remove task da fila de joined tasks
     if ( queue_remove ((queue_t**) &(currentTask->joinedQueue), (queue_t*) task) ) {
-      fprintf(stderr, "[PPOS error]: task exit: fail removing task from joined queue\n");
+      fprintf(stderr, "[PPOS error]: task_exit: fail removing task from joined queue\n");
       exit(-1);
     }
 
@@ -340,10 +386,9 @@ void task_exit (int exitCode) {
 
     // adiciona task a fila de tasks prontas
     if ( queue_append ((queue_t **) &readyQueue, (queue_t*) task) ) {
-      fprintf(stderr, "[PPOS error]: task exit: fail adding task to ready queue\n");
+      fprintf(stderr, "[PPOS error]: task_exit: fail adding task to ready queue\n");
       exit(-1);
     }
-    userTasks++;
 
     task = currentTask->joinedQueue;
   }
@@ -460,22 +505,21 @@ int task_join (task_t *task) {
 
   // remove task da fila de tasks prontas
   if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) currentTask) ) {
-    fprintf(stderr, "[PPOS error]: task join: fail removing task from ready queue\n");
+    fprintf(stderr, "[PPOS error]: task_join: fail removing task from ready queue\n");
     exit(-1);
   }
-  userTasks--;
 
   // seta o status da tarefa atual para suspensa
   currentTask->status = 3;
   
   // adiciona task atual a fila de tasks join da task passada via parametro
   if ( queue_append ((queue_t **) &(task->joinedQueue), (queue_t*) currentTask) ) {
-    fprintf(stderr, "[PPOS error]: task join: fail adding task to joined queue\n");
+    fprintf(stderr, "[PPOS error]: task_join: fail adding task to joined queue\n");
     exit(-1);
   }
 
   #ifdef DEBUG
-  fprintf(stderr, "[PPOS debug]: added to queue\n");
+  fprintf(stdout, "[PPOS debug]: added to queue\n");
   queue_print("Ready queue ", (queue_t *) readyQueue, print_elem);
   queue_print("Joined queue ", (queue_t *) task->joinedQueue, print_elem);
   #endif
@@ -488,6 +532,30 @@ int task_join (task_t *task) {
 
 // operações de gestão do tempo ================================================
 
+/*!
+  \brief Suspende a tarefa corrente por t milissegundos
+*/
+void task_sleep (int t) {
+
+  // remove task da fila de tasks prontas
+  if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) currentTask) ) {
+    fprintf(stderr, "[PPOS error]: task_sleep: fail removing task from ready queue\n");
+    exit(-1);
+  }
+
+  // seta o status da tarefa atual para suspensa e o tempo em que deve acordar
+  currentTask->status = 3;
+  currentTask->wake_time = systime() + t;
+  
+  // adiciona task atual a fila de sleeping tasks
+  if ( queue_append ((queue_t **) &sleepQueue, (queue_t*) currentTask) ) {
+    fprintf(stderr, "[PPOS error]: task_sleep: fail adding task to joined queue\n");
+    exit(-1);
+  }
+
+  task_switch(&taskDispatcher);
+
+}
 /*!
   \brief Retorna o relógio atual (em milisegundos)
 */
