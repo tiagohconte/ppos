@@ -73,6 +73,7 @@ void sleep_verify () {
       // seta o status da task para pronta
       task->status = 1;
       task->wake_time = 0;
+      task->din_prio = task->est_prio;
       
       // adiciona task a fila de prontas
       if ( queue_append ((queue_t **) &readyQueue, (queue_t*) task) ) {
@@ -383,6 +384,7 @@ void task_exit (int exitCode) {
     }
 
     task->status = 1;
+    task->din_prio = task->est_prio;
 
     // adiciona task a fila de tasks prontas
     if ( queue_append ((queue_t **) &readyQueue, (queue_t*) task) ) {
