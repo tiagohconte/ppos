@@ -50,12 +50,34 @@ void print_prio (void *ptr) {
 }
 
 /*!
+  \brief Inicializa uma task
+
+  \param task Task a ser inicializada
+*/  
+static void task_init (task_t *task) {  
+  task->id = taskCount++;
+  task->prev = NULL;
+  task->next = NULL;
+  task->status = 1;
+  task->est_prio = 0;
+  task->din_prio = 0;
+  task->system_task = 0;
+  task->inic_time = systime();
+  task->proc_time = 0;
+  task->wake_time = 0;
+  task->activ = 0;
+  task->exit_code = 0;
+  task->joinedQueue = NULL;
+  getcontext( &(task->context) );
+}
+
+/*!
   \brief Acorda uma tarefa
 
   \param task Tarefa a ser acordada
   \param queue Fila em que a tarefa está
 */  
-void wake_task (task_t *task, queue_t *queue) {
+static void wake_task (task_t *task, queue_t *queue) {
   // remove task da fila de tasks adormecidas passada por parametro
   if ( queue_remove ((queue_t**) queue, (queue_t*) task) ) {
     fprintf(stderr, "[PPOS error]: wake_task: fail removing task from queue\n");
@@ -79,7 +101,7 @@ void wake_task (task_t *task, queue_t *queue) {
   \param task Tarefa a ser adormecida
   \param queue Fila em que a tarefa vai dormir
 */  
-void go_sleep (task_t *task, queue_t *queue) {
+static void go_sleep (task_t *task, queue_t *queue) {
   // remove task da fila de tasks prontas
   if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) currentTask) ) {
     fprintf(stderr, "[PPOS error]: go_sleep: fail removing task from ready queue\n");
@@ -99,11 +121,7 @@ void go_sleep (task_t *task, queue_t *queue) {
 /*!
   \brief Verifica a fila de adormecidas
 */  
-void sleep_verify () {
-  #ifdef DEBUG
-  queue_print("Sleep queue ", (queue_t *) sleepQueue, print_elem);
-  #endif
-
+static void sleep_verify () {
   // verifica a fila de tarefas adormecidas
   task_t *aux, *task = sleepQueue;
   unsigned int size = queue_size( (queue_t *) sleepQueue ), count = 0;
@@ -126,7 +144,7 @@ void sleep_verify () {
 
   \return Retorna o endereço da próxima task da fila de prontas
 */  
-task_t * scheduler () {
+static task_t * scheduler () {
 
   if ( !readyQueue )
     return NULL;
@@ -172,7 +190,7 @@ task_t * scheduler () {
 /*!
   \brief Despachante de tarefas
 */  
-void dispatcher () {
+static void dispatcher () {
 
   #ifdef DEBUG
   fprintf(stdout, "[PPOS debug]: task dispatcher launched\n");
@@ -269,20 +287,7 @@ void ppos_init () {
 
   ticks = 0;
 
-  taskMain.id = taskCount++;
-  taskMain.prev = NULL;
-  taskMain.next = NULL;
-  taskMain.status = 1;
-  taskMain.system_task = 0;
-  taskMain.est_prio = 0;
-  taskMain.din_prio = 0;
-  taskMain.inic_time = systime();
-  taskMain.proc_time = 0;
-  taskMain.wake_time = 0;
-  taskMain.activ = 0;
-  taskMain.exit_code = 0;
-  taskMain.joinedQueue = NULL;
-  getcontext( &(taskMain.context) );
+  task_init(&taskMain);
 
   userTasks++;
 
@@ -350,20 +355,7 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
 
   char *stack;
 
-  task->id = taskCount++;
-  task->prev = NULL;
-  task->next = NULL;
-  task->status = 1;
-  task->est_prio = 0;
-  task->din_prio = 0;
-  task->system_task = 0;
-  task->inic_time = systime();
-  task->proc_time = 0;
-  task->wake_time = 0;
-  task->activ = 0;
-  task->exit_code = 0;
-  task->joinedQueue = NULL;
-  getcontext( &(task->context) );
+  task_init(task);
 
   // aloca stack
   stack = malloc (STACKSIZE);
