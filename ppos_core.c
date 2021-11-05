@@ -404,10 +404,6 @@ void task_exit (int exitCode) {
   currentTask->status = 2;
   currentTask->exit_code = exitCode;
 
-  #ifdef DEBUG
-  queue_print("Joined queue ", (queue_t *) currentTask->joinedQueue, print_elem);
-  #endif
-
   task_t *task = currentTask->joinedQueue;
   while (task) {
     wake_task(task, (queue_t *) &(currentTask->joinedQueue) );
@@ -528,9 +524,7 @@ int task_join (task_t *task) {
   go_sleep(currentTask, (queue_t *) &(task->joinedQueue));
 
   #ifdef DEBUG
-  fprintf(stdout, "[PPOS debug]: added to queue\n");
-  queue_print("Ready queue ", (queue_t *) readyQueue, print_elem);
-  queue_print("Joined queue ", (queue_t *) task->joinedQueue, print_elem);
+  fprintf(stdout, "[PPOS debug]: task %d added to joined queue of task %d\n", currentTask->id, task->id);
   #endif
 
   task_switch(&taskDispatcher);
@@ -549,6 +543,10 @@ void task_sleep (int t) {
   currentTask->wake_time = systime() + t;
 
   go_sleep(currentTask, (queue_t *) &sleepQueue);
+
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: task %d went to sleep for %d ms\n", currentTask->id, t);
+  #endif
 
   task_switch(&taskDispatcher);
 
