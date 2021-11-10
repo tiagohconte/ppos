@@ -583,6 +583,11 @@ int sem_create (semaphore_t *s, int value) {
   s->queue = NULL;
   // sai da secao critica
   leave_cs( &(s->lock) );
+
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: semaphore created\n");
+  #endif
+
   return(0);
 }
 
@@ -602,6 +607,11 @@ int sem_down (semaphore_t *s) {
 
   if ( s->count < 0 ) {
     go_sleep(currentTask, (queue_t *) &(s->queue));
+
+    #ifdef DEBUG
+    fprintf(stdout, "[PPOS debug]: task %d went to sleep on semaphore\n", currentTask->id);
+    #endif
+
     task_switch(&taskDispatcher);
   }
 
@@ -629,6 +639,10 @@ int sem_up (semaphore_t *s) {
   if ( s->count <= 0 ) {
     task = s->queue;
     wake_task(task, (queue_t *) &(s->queue));
+
+    #ifdef DEBUG
+    fprintf(stdout, "[PPOS debug]: task %d awake from semaphore\n", task->id);
+    #endif
   }
 
   // sai da secao critica
@@ -647,7 +661,7 @@ int sem_up (semaphore_t *s) {
 int sem_destroy (semaphore_t *s) {
   // entra na secao critica
   enter_cs( &(s->lock) );
-  
+
   // verifica a fila de tarefas adormecidas
   task_t *aux, *task = s->queue;
   unsigned int size = queue_size( (queue_t *) sleepQueue );
@@ -660,5 +674,10 @@ int sem_destroy (semaphore_t *s) {
   s->valid = 0;
   // sai da secao critica
   leave_cs( &(s->lock) );
+
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: semaphore destroyed\n");
+  #endif
+
   return(0);
 }
