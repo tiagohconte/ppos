@@ -197,7 +197,7 @@ static void dispatcher () {
   #endif
 
   task_t *nextTask;
-  unsigned int proc_time;
+  unsigned int proc_time, proc_time_dispatcher;
 
   // enquanto houverem user tasks
   while ( userTasks > 0 ) {
@@ -205,16 +205,22 @@ static void dispatcher () {
     // escolhe a próxima tarefa a ser executada
     nextTask = scheduler();
 
+    proc_time_dispatcher = systime();
+
     // se escalonador escolheu tarefa
     if ( nextTask ) {
       // seta quantum counter
       quantum_count = 20;
+      // para de contar proc_time do dispatcher
+      taskDispatcher.proc_time += systime() - proc_time_dispatcher;
       // coleta tempo de sistema antes de entrar na tarefa
       proc_time = systime();
       // switch para prox tarefa
       task_switch(nextTask);
       // calcula o tempo de processamento da tarefa
       lastTask->proc_time += systime() - proc_time;
+      // coleta tempo de sistema ao sair na tarefa p/ dispatcher
+      proc_time_dispatcher = systime();
 
       // voltando ao dispatcher, trata a tarefa conforme seu estado
       /*  1 = PRONTA
@@ -252,6 +258,9 @@ static void dispatcher () {
 
     // verifica fila de adormecidas
     sleep_verify();
+      
+    // calcula o tempo de processamento do dispatcher
+    taskDispatcher.proc_time += systime() - proc_time_dispatcher;
 
   }
 
