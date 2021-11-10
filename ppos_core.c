@@ -287,6 +287,14 @@ static void ticks_handler (int signum) {
 
 }
 
+// funcoes para operacoes atomicas
+void enter_cs (int *lock) {
+  while (__sync_fetch_and_or(lock, 1)) ;   // busy waiting
+} 
+void leave_cs (int *lock) {
+  (*lock) = 0 ;
+}
+
 // funções gerais ==============================================================
 
 // Inicializa o sistema operacional; deve ser chamada no inicio do main()
@@ -557,4 +565,100 @@ void task_sleep (int t) {
 */
 unsigned int systime () {
   return ticks;
+}
+
+// operações de IPC ============================================================
+
+// semáforos
+
+/*!
+  \brief Cria um semáforo com valor inicial "value"
+*/
+int sem_create (semaphore_t *s, int value) {
+  // entra na secao critica
+  enter_cs( &(s->lock) );
+  // inicializa semaforo
+  s->count = value;
+  s->valid = 1;
+  s->queue = NULL;
+  // sai da secao critica
+  leave_cs( &(s->lock) );
+  return(0);
+}
+
+/*!
+  \brief Requisita o semáforo
+*/
+int sem_down (semaphore_t *s) {
+  // verifica se semaforo existe
+  if ( !s || !s->valid )
+    return(-1);
+
+  // entra na secao critica
+  enter_cs( &(s->lock) );
+  s->count--;
+  // sai da secao critica
+  leave_cs( &(s->lock) );
+
+  if ( s->count < 0 ) {
+    go_sleep(currentTask, (queue_t *) &(s->queue));
+    task_switch(&taskDispatcher);
+  }
+
+  // verifica se semaforo ainda existe
+  if ( !s || !s->valid )
+    return(-1);
+
+  return(0);
+}
+
+/*!
+  \brief Libera o semáforo
+*/
+int sem_up (semaphore_t *s) {
+  // verifica se semaforo existe
+  if ( !s || !s->valid )
+    return(-1);
+
+  task_t *task;
+
+  // entra na secao critica
+  enter_cs( &(s->lock) );
+  s->count++;
+
+  if ( s->count <= 0 ) {
+    task = s->queue;
+    wake_task(task, (queue_t *) &(s->queue));
+  }
+
+  // sai da secao critica
+  leave_cs( &(s->lock) );
+
+  // verifica se semaforo ainda existe
+  if ( !s || !s->valid )
+    return(-1);
+
+  return(0);
+}
+
+/*!
+  \brief Destroi o semáforo, liberando as tarefas bloqueadas
+*/
+int sem_destroy (semaphore_t *s) {
+  // entra na secao critica
+  enter_cs( &(s->lock) );
+  
+  // verifica a fila de tarefas adormecidas
+  task_t *aux, *task = s->queue;
+  unsigned int size = queue_size( (queue_t *) sleepQueue );
+  for (unsigned int i = 0; i < size; i++) {
+    aux = task->next;
+    wake_task(task, (queue_t *) &(s->queue));
+    task = aux;
+  }
+
+  s->valid = 0;
+  // sai da secao critica
+  leave_cs( &(s->lock) );
+  return(0);
 }

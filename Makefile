@@ -9,7 +9,7 @@ CFLAGS = -Wall
 LFLAGS = 
 
 OBJS = ppos_core.o queue.o
-PROG = pingpong-sleep
+PROG = pingpong-semaphore pingpong-racecond
  
 # regra default
 all: $(PROG)
