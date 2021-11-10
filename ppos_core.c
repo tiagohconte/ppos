@@ -1,5 +1,5 @@
 // PingPongOS - PingPong Operating System
-// Tiago Henrique Conte, DINF UFPR
+// GRR20190374 - Tiago Henrique Conte, DINF UFPR
 // Novembro de 2021
 
 #include <stdlib.h>
