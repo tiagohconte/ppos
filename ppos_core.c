@@ -573,6 +573,11 @@ unsigned int systime () {
 
 /*!
   \brief Cria um semáforo com valor inicial "value"
+
+  \param s ponteiro para semáforo
+  \param value valor inicial do semáforo
+
+  \return 0 em sucesso e -1 em erro
 */
 int sem_create (semaphore_t *s, int value) {
   // entra na secao critica
@@ -593,6 +598,10 @@ int sem_create (semaphore_t *s, int value) {
 
 /*!
   \brief Requisita o semáforo
+
+  \param s ponteiro para semáforo
+
+  \return 0 em sucesso e -1 em erro
 */
 int sem_down (semaphore_t *s) {
   // verifica se semaforo existe
@@ -624,6 +633,10 @@ int sem_down (semaphore_t *s) {
 
 /*!
   \brief Libera o semáforo
+
+  \param s ponteiro para semáforo
+
+  \return 0 em sucesso e -1 em erro
 */
 int sem_up (semaphore_t *s) {
   // verifica se semaforo existe
@@ -657,6 +670,10 @@ int sem_up (semaphore_t *s) {
 
 /*!
   \brief Destroi o semáforo, liberando as tarefas bloqueadas
+
+  \param s ponteiro para semáforo
+
+  \return 0 em sucesso e -1 em erro
 */
 int sem_destroy (semaphore_t *s) {
   // entra na secao critica
