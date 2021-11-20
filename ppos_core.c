@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
+#include <string.h>
 #include <sys/time.h>
 #include "ppos.h"
 
@@ -688,4 +689,135 @@ int sem_destroy (semaphore_t *s) {
   #endif
 
   return(0);
+}
+
+// filas de mensagens
+
+/*!
+  \brief Cria uma fila para até max mensagens de size bytes cada
+
+  \param max número máximo de mensagens
+  \param size tamanho de cada mensagem
+
+  \return 0 em sucesso, -1 em erro
+*/
+int mqueue_create (mqueue_t *queue, int max, int size) {
+  // verifica se a fila existe
+  if ( !queue )
+    return(-1);
+
+  queue->msg_max = max;
+  queue->msg_size = size;
+  sem_create( &(queue->s_buffer), 1);
+  sem_create( &(queue->s_item), 0);
+  sem_create( &(queue->s_vaga), max);
+
+  queue->buffer = malloc( size * max );
+  queue->buffer_start = 0;
+  queue->buffer_count = 0;
+
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: message queue created\n");
+  #endif
+
+  return(0);
+}
+
+/*!
+  \brief Envia uma mensagem para a fila
+
+  \param queue ponteiro para fila de mensagens
+  \param msg mensagem a ser armazenada na fila
+
+  \return 0 em sucesso, -1 em erro
+*/
+int mqueue_send (mqueue_t *queue, void *msg) {
+  // verifica se a fila e a mensagem existem
+  if (!queue || !msg)
+    return(-1);
+
+  if ( sem_down( &(queue->s_vaga) ) || sem_down( &(queue->s_buffer) ) )
+    return(-1);
+
+  memcpy( (queue->buffer + ((queue->buffer_start + queue->buffer_count) % (queue->msg_max)) * queue->msg_size), msg, queue->msg_size);
+  queue->buffer_count++;
+
+  if ( sem_up( &(queue->s_buffer) ) || sem_up( &(queue->s_item) ) )
+    return(-1);
+
+  return(0);
+}
+
+/*!
+  \brief Recebe uma mensagem da fila
+
+  \param queue ponteiro para fila de mensagens
+  \param msg ponteiro a ser armazenada a mensagem
+
+  \return 0 em sucesso, -1 em erro
+*/
+int mqueue_recv (mqueue_t *queue, void *msg) {
+  // verifica se a fila e a mensagem existem
+  if (!queue || !msg)
+    return(-1);
+
+  if (sem_down( &(queue->s_item) ) || sem_down( &(queue->s_buffer) ) )
+    return(-1);
+
+  if( queue->buffer_start >= queue->msg_max )
+    queue->buffer_start = 0;
+
+  memcpy( msg, (queue->buffer + (queue->buffer_start * queue->msg_size) ), queue->msg_size);
+  queue->buffer_start++;
+  queue->buffer_count--;
+
+  if ( sem_up( &(queue->s_buffer) ) || sem_up( &(queue->s_vaga) ) )
+    return(-1);
+
+  return(0);
+}
+
+/*!
+  \brief Destroi a fila, liberando as tarefas bloqueadas
+
+  \param queue ponteiro para fila de mensagens
+
+  \return 0 em sucesso, -1 em erro
+*/
+int mqueue_destroy (mqueue_t *queue) {
+  // verifica se a fila e o buffer existe
+  if ( !queue || !queue->buffer )
+    return(-1);
+
+  free(queue->buffer);
+  queue->buffer = NULL;
+  queue->buffer_start = 0;
+  queue->buffer_count = 0;
+
+  if ( sem_destroy( &(queue->s_buffer) ) || sem_destroy( &(queue->s_item) ) || sem_destroy( &(queue->s_vaga) ) )
+    return(-1);
+
+  queue->msg_max = 0;
+  queue->msg_size = 0;
+
+  #ifdef DEBUG
+  fprintf(stdout, "[PPOS debug]: message queue destroyed\n");
+  #endif
+
+  return(0);
+}
+
+/*!
+  \brief Informa o número de mensagens atualmente na fila
+
+  \param queue ponteiro para fila de mensagens
+
+  \return tamanho da fila ou -1 em erro
+*/
+int mqueue_msgs (mqueue_t *queue) {
+  // verifica se a fila e o buffer existe
+  if ( !queue || !queue->buffer )
+    return(-1);
+
+  return ( queue->buffer_count );
 }
