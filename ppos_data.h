@@ -22,6 +22,7 @@ typedef struct task_t
    int system_task ;  // task de sistema? ( 0 = NÃO, 1 = SIM)
    unsigned int inic_time;  // tempo em que a tarefa foi iniciada
    unsigned int proc_time;  // tempo de processamento da tarefa
+   unsigned int inic_proc_time;   // tempo em que a tarefa iniciou um processamento
    unsigned int wake_time;  // tempo em que a tarefa deve ser acordada
    unsigned int activ;  // quantidade de ativações do processo
    unsigned int exit_code;  // exit code da tarefa
