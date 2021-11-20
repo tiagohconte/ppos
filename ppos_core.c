@@ -664,7 +664,7 @@ int sem_destroy (semaphore_t *s) {
 
   // verifica a fila de tarefas adormecidas
   task_t *aux, *task = s->queue;
-  unsigned int size = queue_size( (queue_t *) sleepQueue );
+  unsigned int size = queue_size( (queue_t *) s->queue );
   for (unsigned int i = 0; i < size; i++) {
     aux = task->next;
     wake_task(task, (queue_t *) &(s->queue));
