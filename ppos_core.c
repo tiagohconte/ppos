@@ -572,6 +572,9 @@ unsigned int systime () {
   \return 0 em sucesso e -1 em erro
 */
 int sem_create (semaphore_t *s, int value) {
+  // verifica se ponteiro existe
+  if (!s)
+    return(-1);
   // entra na secao critica
   enter_cs( &(s->lock) );
   // inicializa semaforo
