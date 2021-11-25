@@ -575,14 +575,12 @@ int sem_create (semaphore_t *s, int value) {
   // verifica se ponteiro existe
   if (!s)
     return(-1);
-  // entra na secao critica
-  enter_cs( &(s->lock) );
+    
   // inicializa semaforo
   s->count = value;
   s->valid = 1;
   s->queue = NULL;
-  // sai da secao critica
-  leave_cs( &(s->lock) );
+  s->lock = 0;
 
   #ifdef DEBUG
   fprintf(stdout, "[PPOS debug]: semaphore created\n");
@@ -606,8 +604,6 @@ int sem_down (semaphore_t *s) {
   // entra na secao critica
   enter_cs( &(s->lock) );
   s->count--;
-  // sai da secao critica
-  leave_cs( &(s->lock) );
 
   if ( s->count < 0 ) {
     go_sleep(currentTask, (queue_t *) &(s->queue));
@@ -616,7 +612,13 @@ int sem_down (semaphore_t *s) {
     fprintf(stdout, "[PPOS debug]: task %d went to sleep on semaphore\n", currentTask->id);
     #endif
 
+    // sai da secao critica
+    leave_cs( &(s->lock) );
+
     task_switch(&taskDispatcher);
+  } else {
+    // sai da secao critica
+    leave_cs( &(s->lock) );
   }
 
   // verifica se semaforo ainda existe
