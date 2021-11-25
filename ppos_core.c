@@ -78,7 +78,7 @@ static void task_init (task_t *task) {
   \param task Tarefa a ser acordada
   \param queue Fila em que a tarefa está
 */  
-static void wake_task (task_t *task, queue_t *queue) {
+void wake_task (task_t *task, queue_t *queue) {
   // remove task da fila de tasks adormecidas passada por parametro
   if ( queue_remove ((queue_t**) queue, (queue_t*) task) ) {
     fprintf(stderr, "[PPOS error]: wake_task: fail removing task from queue\n");
@@ -102,7 +102,7 @@ static void wake_task (task_t *task, queue_t *queue) {
   \param task Tarefa a ser adormecida
   \param queue Fila em que a tarefa vai dormir
 */  
-static void go_sleep (task_t *task, queue_t *queue) {
+void go_sleep (task_t *task, queue_t *queue) {
   // remove task da fila de tasks prontas
   if ( queue_remove ((queue_t**) &readyQueue, (queue_t*) currentTask) ) {
     fprintf(stderr, "[PPOS error]: go_sleep: fail removing task from ready queue\n");
