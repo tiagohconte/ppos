@@ -7,14 +7,32 @@
 #ifndef __DISK_MGR__
 #define __DISK_MGR__
 
+#define READ_OPERATION 0
+#define WRITE_OPERATION 1
+
 // estruturas de dados e rotinas de inicializacao e acesso
 // a um dispositivo de entrada/saida orientado a blocos,
 // tipicamente um disco rigido.
 
+// estrutura que representa um request de disco
+typedef struct
+{
+  struct request_t *prev, *next; // ponteiros para usar em filas
+  task_t *task;     // task pedindo o disco
+  int type;         // READ_OPERATION ou WRITE_OPERATION
+  int block;        // bloco da operacao
+  void *buffer;     // buffer de dados
+  int exit_code;    // exit_code da tarefa
+  semaphore_t wait; // tarefa aguarda disco
+} request_t ;
+
 // estrutura que representa um disco no sistema operacional
 typedef struct
 {
-  // completar com os campos necessarios
+  request_t *queue;   // fila de pedidos de disco
+  semaphore_t access; // semaforo de acesso ao disco
+  int numBlocks;      // quantidade de blocos no disco
+  int blockSize;      // tamanho do bloco do disco
 } disk_t ;
 
 // inicializacao do gerente de disco
