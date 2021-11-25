@@ -16,26 +16,19 @@ extern int userTasks;
 task_t taskDiskMgr;
 semaphore_t diskSleep;
 disk_t disk;
-int diskSignal, signalLock;
+int diskSignal;
 
 // estrutura que define um tratador de sinal (deve ser global ou static)
 struct sigaction diskAction;
 
 // funções locais ==============================================================
 
-// funcoes para operacoes atomicas
-extern void enter_cs (int *lock);
-extern void leave_cs (int *lock);
-
 // tratador de sinal de disco
 static void disk_handler (int signum) {
+  diskSignal = 1;
   // acorda tarefa de gerente de disco, caso esteja dormindo
   if (taskDiskMgr.status == 3) 
     sem_up(&(diskSleep));
-
-  enter_cs(&signalLock);
-  diskSignal = 1;
-  leave_cs(&signalLock);
 }
 
 /*!
@@ -50,9 +43,7 @@ static void disk_manager () {
     sem_down(&(disk.access));
 
     if ( diskSignal ) {
-      enter_cs(&signalLock);
       diskSignal = 0;
-      leave_cs(&signalLock);
       req = disk.queue;
       sem_up(&(req->wait));
       if ( queue_remove( (queue_t **) &(disk.queue), (queue_t *) req ) )
@@ -163,8 +154,11 @@ int disk_block_read (int block, void *buffer) {
   req.buffer = buffer;
   req.task = currentTask;
   req.type = READ_OPERATION;
-  sem_create(&(req.wait), 0);
   req.exit_code = 0;
+  if ( sem_create(&(req.wait), 0) ) {
+    fprintf(stderr, "[PPOS error] disk_block_read: fail on create semaphore\n");
+    return(-1);
+  }
   
   if ( sem_down(&(disk.access)) )
     return(-1);
@@ -185,7 +179,10 @@ int disk_block_read (int block, void *buffer) {
     return(-1);
 
   // espera o disco terminar a operacao
-  sem_down(&(req.wait));
+  if ( sem_down(&(req.wait)) ){
+    fprintf(stderr, "[PPOS error] fail to wait disk operation\n");
+    return(-1);
+  }
 
   sem_destroy(&(req.wait));
 
@@ -206,8 +203,11 @@ int disk_block_write (int block, void *buffer) {
   req.buffer = buffer;
   req.task = currentTask;
   req.type = WRITE_OPERATION;
-  sem_create(&(req.wait), 0);
   req.exit_code = 0;
+  if ( sem_create(&(req.wait), 0) ) {
+    fprintf(stderr, "[PPOS error] disk_block_write: fail on create semaphore\n");
+    return(-1);
+  }
   
   if ( sem_down(&(disk.access)) )
     return(-1);
@@ -228,7 +228,10 @@ int disk_block_write (int block, void *buffer) {
     return(-1);
 
   // espera o disco terminar a operacao
-  sem_down(&(req.wait));
+  if ( sem_down(&(req.wait)) ){
+    fprintf(stderr, "[PPOS error] fail to wait disk operation\n");
+    return(-1);
+  }
 
   sem_destroy(&(req.wait));
 
